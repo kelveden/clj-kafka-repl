@@ -15,7 +15,8 @@
            (java.util.concurrent TimeUnit)
            (org.apache.kafka.clients.consumer KafkaConsumer)
            (org.apache.kafka.clients.producer KafkaProducer ProducerRecord)
-           (org.apache.kafka.common TopicPartition)))
+           (org.apache.kafka.common TopicPartition)
+           (java.time Duration)))
 
 (def ^:private max-poll-records 500)
 
@@ -474,7 +475,7 @@
       (future
         (try
           (loop []
-            (let [messages (->> (.poll consumer 2000)
+            (let [messages (->> (.poll consumer (Duration/ofMillis 2000))
                                 (map cr->kafka-message))
                   filtered (->> messages
                                 (filter final-filter-fn)
@@ -554,7 +555,7 @@
         args       (concat [topic-name
                             :offset (dec offset)
                             :limit 1
-                            :filter-fn #(= offset (:offset (meta %)))]
+                            :filter-fn #(= offset (:offset %))]
                            (when (some? partition) [:partition partition])
                            (when (some? value-deserializer) [:value-deserializer value-deserializer]))
         ch         (apply consume args)

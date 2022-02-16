@@ -31,6 +31,26 @@
         :args (s/cat :tracked-channel ::tracked-channel)
         :ret any?)
 
+(defn skip!
+  "Consumes and skips n items from the channel."
+  [{:keys [channel]} n]
+  (loop [x 0 offset nil partition nil]
+    (let [result {:count     x
+                  :offset    offset
+                  :partition partition}]
+      (if (< x n)
+        (if-let [message (deref (future (async/<!! channel)) 3000 nil)]
+          (recur (inc x)
+                 (:offset message)
+                 (:partition message))
+          result)
+        result))))
+
+(s/fdef skip!
+        :args (s/cat :tracked-channel ::tracked-channel
+                     :n pos-int?)
+        :ret any?)
+
 (defn closed?
   "Returns flag indicating whether the specified channel is closed."
   [{:keys [channel]}]
