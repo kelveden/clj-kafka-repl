@@ -36,10 +36,11 @@
 (defmethod new-deserializer :nippy [_]
   (nippy-deserializer))
 
-(defmethod new-deserializer :avro [_]
+(defmethod new-deserializer :avro [_ & {:keys [convert-logical-types?]
+                                        :or   {convert-logical-types? true}}]
   (-> (:schema-registry-config *config*)
       ->schema-registry-client
-      ->avro-deserializer))
+      (->avro-deserializer :convert-logical-types? convert-logical-types?)))
 
 (defmethod new-deserializer :noop [_]
   (->NoopDeserializer))

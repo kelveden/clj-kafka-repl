@@ -87,6 +87,12 @@
   (future
     (loop-channel channel #(swap! a conj %))))
 
+(defn to-stdout-filtered
+  [{:keys [channel]} pred]
+  (future
+    (loop-channel channel #(when (pred %)
+                             (puget/pprint % {:print-color true})))))
+
 (defn to-stdout
   "Streams the contents of the specified to stdout."
   [tracked-channel]

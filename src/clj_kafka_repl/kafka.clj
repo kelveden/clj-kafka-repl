@@ -373,16 +373,14 @@
   | `:partition-offsets` | `nil`   | Vector of partition+offset vector pairs that represent a by-partition representation of offsets to start consuming from. |
   | `:key-deserializer`  | `nil`   | Deserializer to use to deserialize the message key. Overrides the value in config. Defaults to a string deserializer. |
   | `:value-deserializer`| `nil`   | Deserializer to use to deserialize the message value. Overrides the value in config. Defaults to a string deserializer. |
-  | `:limit`             | `nil`   | The maximum number of messages to pull back either into the stream or the results vector (depending on stream mode). |
-  | `:filter-fn`         | `nil`   | `filter` function to apply to the incoming :kafka-message(s). Can be a string, in which case a filter on the message value containing that string is implied. |"
+  | `:limit`             | `nil`   | The maximum number of messages to pull back either into the stream or the results vector (depending on stream mode). |"
   [topic & {:keys [partition offset partition-offsets key-deserializer value-deserializer limit filter-fn]
             :or   {partition          nil
                    offset             :end
                    partition-offsets  nil
                    key-deserializer   (default-key-deserializer)
                    value-deserializer (default-value-deserializer)
-                   limit              nil
-                   filter-fn          (constantly true)}}]
+                   limit              nil}}]
   (let [topic-name       (->topic-name topic)
         kafka-config     (:kafka-config *config*)
         group-id         (str "clj-kafka-repl-" (UUID/randomUUID))
@@ -399,10 +397,7 @@
                            (some? partition) [partition]
                            :else (map #(.partition %)
                                       (.partitionsFor consumer topic-name)))
-        topic-partitions (map #(TopicPartition. topic-name %) partitions)
-        final-filter-fn  (if (string? filter-fn)
-                           #(clojure.string/includes? % filter-fn)
-                           filter-fn)]
+        topic-partitions (map #(TopicPartition. topic-name %) partitions)]
 
     (.assign consumer topic-partitions)
 
@@ -478,7 +473,6 @@
             (let [messages (->> (.poll consumer (Duration/ofMillis 2000))
                                 (map cr->kafka-message))
                   filtered (->> messages
-                                (filter final-filter-fn)
                                 (take (- (or limit Long/MAX_VALUE)
                                          @count-atom)))]
 
