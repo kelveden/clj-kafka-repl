@@ -7,7 +7,8 @@
             [clojure.repl :refer [dir-fn]]
             [clojure.spec.test.alpha :as stest]
             [clojure.term.colors :refer [cyan green magenta yellow]]
-            [kaocha.repl :as kaocha]))
+            [kaocha.repl :as kaocha]
+            [cheshire.core :as json]))
 
 (defn get-namespace-functions
   [ns]
@@ -45,6 +46,12 @@
   (if ns
     (kaocha/run ns)
     (kaocha/run-all {:reporter [kaocha.report/dots]})))
+
+(def my-schema
+  {:type   "record"
+   :name   "Whatever"
+   :fields [{:name "thing"
+             :type "string"}]})
 
 (stest/instrument)
 (load-config)

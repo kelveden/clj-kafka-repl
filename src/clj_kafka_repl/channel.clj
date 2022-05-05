@@ -11,16 +11,18 @@
 
 (s/def ::progress-fn fn?)
 (s/def ::channel #(satisfies? async-protocols/Channel %))
-(s/def ::tracked-channel (s/keys :req-un [::channel ::progress-fn]))
+(s/def ::consumer-channel (s/keys :req-un [::channel ::progress-fn]))
 
 (defn close!
-  "Closes the specified core.async channel."
-  [{:keys [channel]}]
-  (async/poll! channel)
-  (async/close! channel))
+  "Closes the specified channel/consumer-channel."
+  [ch]
+  (let [channel (if (s/valid? ::consumer-channel ch)
+                  (:channel ch)
+                  ch)]
+    (async/close! channel)))
 
 (s/fdef close!
-        :args (s/cat :tracked-channel ::tracked-channel))
+        :args (s/cat :consumer-channel ::consumer-channel))
 
 (defn poll!
   "Reads off the next value (if any) from the specified channel."
@@ -28,7 +30,7 @@
   (async/poll! channel))
 
 (s/fdef poll!
-        :args (s/cat :tracked-channel ::tracked-channel)
+        :args (s/cat :consumer-channel ::consumer-channel)
         :ret any?)
 
 (defn skip!
@@ -47,7 +49,7 @@
         result))))
 
 (s/fdef skip!
-        :args (s/cat :tracked-channel ::tracked-channel
+        :args (s/cat :consumer-channel ::consumer-channel
                      :n pos-int?)
         :ret any?)
 
@@ -57,7 +59,7 @@
   (async-protocols/closed? channel))
 
 (s/fdef closed?
-        :args (s/cat :tracked-channel ::tracked-channel))
+        :args (s/cat :consumer-channel ::consumer-channel))
 
 (defn- loop-channel
   [channel fn]
@@ -95,21 +97,21 @@
 
 (defn to-stdout
   "Streams the contents of the specified to stdout."
-  [tracked-channel]
-  (to tracked-channel *out*))
+  [consumer-channel]
+  (to consumer-channel *out*))
 
 (s/fdef to-stdout
-        :args (s/cat :tracked-channel ::tracked-channel
+        :args (s/cat :consumer-channel ::consumer-channel
                      :options (s/* (s/alt :print (s/cat :opt #(= % :print)
                                                         :value fn?)))))
 
 (defn to-file
   "Streams the contents of the specified channel to the given file path."
-  [tracked-channel f]
-  (to tracked-channel f))
+  [consumer-channel f]
+  (to consumer-channel f))
 
 (s/fdef to-file
-        :args (s/cat :tracked-channel ::tracked-channel
+        :args (s/cat :consumer-channel ::consumer-channel
                      :f string?))
 
 (defn progress
@@ -118,5 +120,5 @@
   (progress-fn))
 
 (s/fdef progress
-        :args (s/cat :tracked-channel ::tracked-channel)
+        :args (s/cat :consumer-channel ::consumer-channel)
         :ret map?)
