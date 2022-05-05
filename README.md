@@ -4,25 +4,25 @@ clj-kafka-repl
 
 General purpose Clojure REPL functions for interrogating Kafka.
 
-[API](https://ovotech.github.io/clj-kafka-repl/)
+[API](https://kelveden.github.io/clj-kafka-repl/)
 
 Features
 --------
 
 The functionality provided in the `kafka` namespace can be split as follows:
 
-* Consumer group offsets: [get-group-offset](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-group-offset),
- [get-group-offset](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-group-offsets), 
- [get-earliest-offsets](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-earliest-offsets),
- [get-latest-offsets](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-latest-offsets),
- [set-group-offsets!](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-set-group-offsets!)
-* Consuming: [consume](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-consume), 
- [sample](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-sample),
- [get-message](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-message),
- [get-topic-partitions](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-topic-partitions),
-* Producing: [produce](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-produce)
-* Miscellaneous: [get-lag](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-lag),
- [get-topics](https://ovotech.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-topics) 
+* Consumer group offsets: [get-group-offset](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-group-offset),
+ [get-group-offset](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-group-offsets), 
+ [get-earliest-offsets](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-earliest-offsets),
+ [get-latest-offsets](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-latest-offsets),
+ [set-group-offsets!](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-set-group-offsets!)
+* Consuming: [consumer-chan](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-consumer-chan), 
+ [sample](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-sample),
+ [get-message](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-message),
+ [get-topic-partitions](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-topic-partitions),
+* Producing: [producer-chan](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-producer-chan)
+* Miscellaneous: [get-lag](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-lag),
+ [get-topics](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-topics) 
 
 Getting started
 ---------------

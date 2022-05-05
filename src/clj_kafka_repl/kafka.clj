@@ -348,7 +348,7 @@
    :value          (.value cr)
    :type           (type (.value cr))})
 
-(defn consume
+(defn consumer-chan
   "Opens a consumer over the specified topic and returns a ::ch/tracked-channel which is a wrapper over a core.async
   channel.
 
@@ -502,7 +502,7 @@
 
       tracked-channel)))
 
-(s/fdef consume
+(s/fdef consumer-chan
         :args (s/cat :topic ::topic
                      :args (s/* (s/alt :limit (s/cat :opt #(= % :limit) :value pos-int?)
                                        :partition (s/cat :opt #(= % :partition) :value nat-int?)
@@ -514,10 +514,10 @@
         :ret ::ch/tracked-channel)
 
 (defn sample
-  "Convenience function around [[kafka/consume]] to just sample a message from the topic."
+  "Convenience function around [[kafka/consumer-chan]] to just sample a message from the topic."
   [topic & opts]
   (let [topic-name (->topic-name topic)
-        c          (apply consume (concat [topic-name :limit 1 :offset :start] opts))]
+        c          (apply consumer-chan (concat [topic-name :limit 1 :offset :start] opts))]
     (try
       (deref
         (future
@@ -552,7 +552,7 @@
                             :filter-fn #(= offset (:offset %))]
                            (when (some? partition) [:partition partition])
                            (when (some? value-deserializer) [:value-deserializer value-deserializer]))
-        ch         (apply consume args)
+        ch         (apply consumer-chan args)
         f          (future
                      (loop [m (ch/poll! ch)]
                        (if m
@@ -571,7 +571,7 @@
                                        :partition (s/cat :opt #(= % :partition) :value ::partition))))
         :ret map?)
 
-(defn produce
+(defn producer-chan
   "Produce messages to the specified topic.
 
   | key                | default | description |
@@ -599,12 +599,14 @@
                  (log/debugf "Producing record %s to key %s on topic %s." v k topic-name)
                  (.send producer record)))
              (recur (async/<!! ch))))
+         (catch Exception e
+           (prn e))
          (finally
            (.close producer)
            (println "Producer closed."))))
      ch)))
 
-(s/fdef produce
+(s/fdef producer-chan
         :args (s/cat :topic ::topic
                      :args (s/* (s/alt :key-serializer (s/cat :opt #(= % :key-serializer) :value ::ser/serializer)
                                        :value-serializer (s/cat :opt #(= % :value-serializer) :value ::ser/serializer))))

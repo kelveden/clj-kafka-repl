@@ -16,7 +16,7 @@
                  [ovotech/kafka-avro-confluent "2.1.0-5"]]
 
   :plugins [[mvxcvi/whidbey "2.0.0"]
-            [lein-codox "0.10.7"]]
+            [lein-codox "0.10.8"]]
 
   :middleware [whidbey.plugin/repl-pprint]
 
