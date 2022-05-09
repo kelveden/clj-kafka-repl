@@ -1,6 +1,6 @@
 clj-kafka-repl
 ==============
-> This is still a work in progress and should be considered very much "pre-alpha" for now. A lot of the functions are currently in an indeterminate state although the likes of `kafka/consume` and `kafka/get-lag` I've used recently and so should be fairly reliable. The whole project is crying out for some proper testing in a lot of places though.
+> This is still a work in progress and should be considered very much "pre-alpha" for now. A lot of the functions are currently in an indeterminate state although the likes of `kafka/consumer-chan` and `kafka/get-lag` I've used recently and so should be fairly reliable. The whole project is crying out for some proper testing in a lot of places though.
 
 General purpose Clojure REPL functions for interrogating Kafka.
 
