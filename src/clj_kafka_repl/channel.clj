@@ -5,7 +5,8 @@
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [puget.printer :as puget]
-            [clojure.tools.logging :as log])
+            [clojure.tools.logging :as log]
+            [clojure.pprint])
   (:import (clojure.lang Atom)
            (java.io PrintWriter)))
 
@@ -62,57 +63,39 @@
         :args (s/cat :consumer-channel ::consumer-channel))
 
 (defn- loop-channel
-  [channel fn]
+  [channel fn {:keys [pred transformer] :or {pred        any?
+                                             transformer identity}}]
   (try
     (loop [next (async/<!! channel)]
       (when next
-        (fn next)
+        (when (pred next)
+          (fn (transformer next)))
         (recur (async/<!! channel))))
     (catch Exception e
       (log/error e))))
 
 (defmulti to
-          "Provides facilities for piping the content of the tracked channel to a given target."
-          (fn [_ target] (type target)))
+          "Provides facilities for streaming the content of the tracked channel to a given target."
+          (fn [_ target & opts] (type target)))
 
-(defmethod to PrintWriter [{:keys [channel]} writer]
+(defmethod to PrintWriter [{:keys [channel]} writer & {:keys [printer]
+                                                       :or   {printer #(puget/pprint % {:print-color true})}
+                                                       :as   opts}]
   (future
     (binding [*out* writer]
-      (loop-channel channel #(puget/pprint % {:print-color true})))))
+      (loop-channel channel printer opts))))
 
-(defmethod to String [{:keys [channel]} file-path]
+(defmethod to String [{:keys [channel]} file-path & {:keys [printer]
+                                                     :or   {printer clojure.pprint/pprint}
+                                                     :as   opts}]
+  ; Stream to file
   (future
     (with-open [w (io/writer (io/file file-path))]
-      (loop-channel channel #(clojure.pprint/pprint % w)))))
+      (loop-channel channel #(printer % w) opts))))
 
-(defmethod to Atom [{:keys [channel]} a]
+(defmethod to Atom [{:keys [channel]} a & {:as opts}]
   (future
-    (loop-channel channel #(swap! a conj %))))
-
-(defn to-stdout-filtered
-  [{:keys [channel]} pred]
-  (future
-    (loop-channel channel #(when (pred %)
-                             (puget/pprint % {:print-color true})))))
-
-(defn to-stdout
-  "Streams the contents of the specified to stdout."
-  [consumer-channel]
-  (to consumer-channel *out*))
-
-(s/fdef to-stdout
-        :args (s/cat :consumer-channel ::consumer-channel
-                     :options (s/* (s/alt :print (s/cat :opt #(= % :print)
-                                                        :value fn?)))))
-
-(defn to-file
-  "Streams the contents of the specified channel to the given file path."
-  [consumer-channel f]
-  (to consumer-channel f))
-
-(s/fdef to-file
-        :args (s/cat :consumer-channel ::consumer-channel
-                     :f string?))
+    (loop-channel channel #(swap! a conj %) opts)))
 
 (defn progress
   "Gives an indication of the progress of the given tracked channel on its partitions."

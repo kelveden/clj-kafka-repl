@@ -60,6 +60,10 @@ When you run one of the functions you will need to specify which profile to use.
 (with :nonprod (kafka/get-latest-offsets "your-topic"))
 ```
 
+### Examples
+
+You can find an example configuration and code to run from the REPL at the bottom of [user.clj](./src/user.clj).
+
 Serialization/deserialization
 -----------------------------
 
