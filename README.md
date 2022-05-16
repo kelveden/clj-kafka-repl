@@ -71,7 +71,7 @@ Several serialization/deserialization formats are supported:
 
 * `:string`: as plain text. This is the default for both keys and values.
 * `:edn`: as edn
-* `:avro`: Use [Apache Avro](https://avro.apache.org/) and a [Confluent schema registry](https://docs.confluent.io/current/schema-registry/index.html) defined in the configuration.
+* `:avro`: Use [Apache Avro](https://avro.apache.org/) and a [Confluent schema registry](https://docs.confluent.io/current/schema-registry/index.html) defined in the configuration. (Serialization/deserialization is provided by the excellent [kafka-avro-confluent](https://github.com/ovotech/kafka-avro-confluent) library.)
 * `:nippy`: compressed/decompressed using [nippy](https://github.com/ptaoussanis/nippy).
 
 You can either specify these formats in calls to the functions or in the configuration using the
