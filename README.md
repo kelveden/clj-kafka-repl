@@ -86,6 +86,40 @@ serialize/deserialize as strings):
  :profiles {...}}
 ```
 
+Using Confluent/Schema Registry
+-------------------------------
+
+You'll need the `ca.pem`, `service.cert` and `service.key` for a user on Confluent and then you'll need to add them to
+a truststore and keystore; e.g.:
+
+```sh
+openssl pkcs12 -export -inkey service.key -in service.cert -out client.keystore.p12 -name service_key
+keytool -import -file ca.pem -alias CA -keystore client.truststore.jks
+```
+
+Then you'll need to configure the kafka client in `~/.clj-kafka-repl/config.edn`:
+
+```clojure
+{:default-value-serializer   :avro
+ :default-value-deserializer :avro
+
+ :profiles
+ {:prod
+  {:kafka-config
+   {:bootstrap.servers "..."
+    :ssl.key.password "..."
+    :ssl.keystore.type "pkcs12"
+    :ssl.keystore.location "<path to client.keystore.p12>"
+    :ssl.keystore.password "..."
+    :ssl.truststore.location "<path to client.truststore.jks>"
+    :ssl.truststore.password "..."},
+
+   :schema-registry-config
+   {:base-url "https://<schema-registry-host>:<port>",
+    :username "...",
+    :password "..."}}}}
+```
+
 Running tests
 -------------
 > There are *very* limited tests right now - we're working on building them up DDT-style...
