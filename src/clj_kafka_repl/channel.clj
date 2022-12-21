@@ -97,6 +97,37 @@
   (future
     (loop-channel channel #(swap! a conj %) opts)))
 
+(defn to-file
+  "Writes all messages received in the channel to the specified file path using pprint. To use your own pretty printing function,
+  use `(to consumer-channel f :printer <your print function>)`."
+  [consumer-channel f]
+  (to consumer-channel f))
+
+(s/fdef to-file
+        :args (s/cat :consumer-channel ::consumer-channel
+                     :f (s/and string? (complement clojure.string/blank?)))
+        :ret future?)
+
+(defn to-stdout
+  "Writes all messages received in the channel to stdout using pprint."
+  [consumer-channel]
+  (to consumer-channel *out*))
+
+(s/fdef to-stdout
+        :args (s/cat :consumer-channel ::consumer-channel)
+        :ret future?)
+
+(defn to-atom
+  "Appends all messages received in the channel to the specified atom using conj. This means that the atom should be
+  initialised with an empty collection - e.g. `(atom [])`"
+  [consumer-channel a]
+  (to consumer-channel a))
+
+(s/fdef to-atom
+        :args (s/cat :consumer-channel ::consumer-channel
+                     :a #(instance? Atom %))
+        :ret future?)
+
 (defn progress
   "Gives an indication of the progress of the given tracked channel on its partitions."
   [{:keys [progress-fn]}]

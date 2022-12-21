@@ -376,14 +376,16 @@
   | `:partition-offsets` | `nil`   | Vector of partition+offset vector pairs that represent a by-partition representation of offsets to start consuming from. |
   | `:key-deserializer`  | `nil`   | Deserializer to use to deserialize the message key. Overrides the value in config. Defaults to a string deserializer. |
   | `:value-deserializer`| `nil`   | Deserializer to use to deserialize the message value. Overrides the value in config. Defaults to a string deserializer. |
-  | `:limit`             | `nil`   | The maximum number of messages to pull back either into the stream or the results vector (depending on stream mode). |"
-  [topic & {:keys [partition offset partition-offsets key-deserializer value-deserializer limit filter-fn]
+  | `:limit`             | `nil`   | The maximum number of messages to pull back either into the stream or the results vector (depending on stream mode). |
+  | `:predicate`         | `(constantly true)` | Predicate to filter each incoming message. |"
+  [topic & {:keys [partition offset partition-offsets key-deserializer value-deserializer limit predicate]
             :or   {partition          nil
                    offset             :end
                    partition-offsets  nil
                    key-deserializer   (default-key-deserializer)
                    value-deserializer (default-value-deserializer)
-                   limit              nil}}]
+                   limit              nil
+                   predicate          (constantly true)}}]
   (let [topic-name       (->topic-name topic)
         kafka-config     (:kafka-config *config*)
         group-id         (str "clj-kafka-repl-" (UUID/randomUUID))
@@ -463,19 +465,16 @@
                                      (into [] by-partition)
 
                                      latest-offsets
-                                     (get-latest-offsets topic-name)
-
-                                     {:keys [total-lag offsets]}
-                                     (to-lag-map current-offsets latest-offsets)]
-                                 {:total-received  total-received
-                                  :total-remaining total-lag
-                                  :offsets         offsets}))}]
+                                     (get-latest-offsets topic-name)]
+                                 (-> (to-lag-map current-offsets latest-offsets)
+                                     (assoc :total-received  total-received))))}]
       (future
         (try
           (loop []
             (let [messages (->> (.poll consumer (Duration/ofMillis 2000))
                                 (map cr->kafka-message))
                   filtered (->> messages
+                                (filter predicate)
                                 (take (- (or limit Long/MAX_VALUE)
                                          @count-atom)))]
 
