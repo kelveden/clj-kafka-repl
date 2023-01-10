@@ -27,9 +27,17 @@
   [s]
   (-> (and
         (string? s)
-        (= 20 (count s))
         (try
           (jt/zoned-date-time s)
+          (catch Exception _ nil)))
+      boolean))
+
+(defn- instant-string?
+  [s]
+  (-> (and
+        (string? s)
+        (try
+          (jt/instant s)
           (catch Exception _ nil)))
       boolean))
 
@@ -41,6 +49,7 @@
        (into {})))
 
 (s/def ::zoned-date-time-string zoned-date-time-string?)
+(s/def ::instant-string instant-string?)
 (s/def ::non-blank-string (s/and string? (complement clojure.string/blank?)))
 (s/def ::topic (s/or :keyword keyword?
                      :string ::non-blank-string))
@@ -346,7 +355,7 @@
   {:key            (.key cr)
    :partition      (.partition cr)
    :offset         (.offset cr)
-   :timestamp      (-> (.timestamp cr) jt/instant str)
+   :timestamp      (-> (.timestamp cr) jt/instant)
    :timestamp-type (str (.timestampType cr))
    :value          (.value cr)
    :type           (type (.value cr))})
@@ -372,7 +381,7 @@
   | key                  | default | description |
   |:---------------------|:--------|:------------|
   | `:partition`         | `nil`   | Limit consumption to a specific partition. |
-  | `:offset`            | `:end`  | Start consuming from the specified offset. Valid values: `:start`, `:end`, numeric offset, timestamp (as date/time string) |
+  | `:offset`            | `:end`  | Start consuming from the specified offset. Valid values: `:start`, `:end`, numeric offset |
   | `:partition-offsets` | `nil`   | Vector of partition+offset vector pairs that represent a by-partition representation of offsets to start consuming from. |
   | `:key-deserializer`  | `nil`   | Deserializer to use to deserialize the message key. Overrides the value in config. Defaults to a string deserializer. |
   | `:value-deserializer`| `nil`   | Deserializer to use to deserialize the message value. Overrides the value in config. Defaults to a string deserializer. |
@@ -462,12 +471,13 @@
                                      @progress
 
                                      current-offsets
-                                     (into [] by-partition)
+                                     (->> (into [] by-partition)
+                                          (sort first))
 
                                      latest-offsets
                                      (get-latest-offsets topic-name)]
                                  (-> (to-lag-map current-offsets latest-offsets)
-                                     (assoc :total-received  total-received))))}]
+                                     (assoc :total-received total-received))))}]
       (future
         (try
           (loop []
@@ -512,8 +522,51 @@
                                        :offset (s/cat :opt #(= % :offset) :value ::offset-specification)
                                        :key-deserializer (s/cat :opt #(= % :key-deserializer) :value ::dser/deserializer)
                                        :value-deserializer (s/cat :opt #(= % :value-deserializer) :value ::dser/deserializer)
-                                       :filter-fn (s/cat :opt #(= % :filter-fn) :value (s/or :string string? :fn fn?)))))
+                                       :predicate (s/cat :opt #(= % :predicate) :value (s/or :string string? :fn fn?)))))
         :ret ::ch/consumer-channel)
+
+(defn get-offsets-at
+  "Attempts to calculate the earliest offset after the specified point in time. 'at' should be a string representation of an
+  instant; e.g. 2000-01-01T00:00:00Z.
+
+  The returned map pairs each partition with the matching offset and timestamp of that offset. There is also an indication
+  as what the earliest overall offset is by both offset and timestamp."
+  [topic at]
+  (let [topic-name   (->topic-name topic)
+        at-millis    (jt/to-millis-from-epoch (jt/instant at))
+
+        kafka-config (:kafka-config *config*)
+        group-id     (str "clj-kafka-repl-" (UUID/randomUUID))
+        cc           (-> kafka-config
+                         (assoc :group.id group-id)
+                         (normalize-config))]
+    (with-open [c (KafkaConsumer. cc (default-key-deserializer) (default-value-deserializer))]
+      (let [topic-partitions (->> (.partitionsFor c topic-name)
+                                  (reduce (fn [acc p]
+                                            (assoc acc (TopicPartition. topic-name (.partition p)) at-millis))
+                                          {}))
+            offsets          (->> (.offsetsForTimes c topic-partitions)
+                                  (map (fn [[tp ot]]
+                                         [(.partition tp) [(.offset ot) (str (jt/instant (.timestamp ot)))]]))
+                                  (sort-by first))]
+        {:offsets               offsets
+         :earliest-by-offset    (->> offsets
+                                     (rest)
+                                     (reduce (fn [[_ [o _] :as curr]
+                                                  [_ [o' _] :as new]]
+                                               (if (< o' o) new curr))
+                                             (first offsets)))
+         :earliest-by-timestamp (->> offsets
+                                     (rest)
+                                     (reduce (fn [[_ [_ t] :as curr]
+                                                  [_ [_ t'] :as new]]
+                                               (if (jt/before? (jt/instant t') (jt/instant t)) new curr))
+                                             (first offsets)))}))))
+
+(s/fdef get-offsets-at
+        :args (s/cat :topic ::topic
+                     :at ::instant-string)
+        :ret map?)
 
 (defn sample
   "Convenience function around [[kafka/consumer-chan]] to just sample a message from the topic."
