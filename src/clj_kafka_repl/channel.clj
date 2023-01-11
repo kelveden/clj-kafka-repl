@@ -8,7 +8,8 @@
             [clojure.tools.logging :as log]
             [clojure.pprint])
   (:import (clojure.lang Atom)
-           (java.io PrintWriter)))
+           (java.io PrintWriter)
+           (java.util UUID)))
 
 (s/def ::progress-fn fn?)
 (s/def ::channel #(satisfies? async-protocols/Channel %))
@@ -63,69 +64,91 @@
         :args (s/cat :consumer-channel ::consumer-channel))
 
 (defn- loop-channel
-  [channel fn {:keys [pred transformer] :or {pred        any?
-                                             transformer identity}}]
+  [channel fn {:keys [pred transformer n] :or {pred        any?
+                                               transformer identity
+                                               n           nil}}]
   (try
-    (loop [next (async/<!! channel)]
+    (loop [next            (async/<!! channel)
+           processed-count 0]
       (when next
-        (when (pred next)
-          (fn (transformer next)))
-        (recur (async/<!! channel))))
+        (let [process?  (pred next)
+              new-count (cond-> processed-count process? inc)]
+          (when process?
+            (fn (transformer next)))
+
+          ; Limit looping to n invocations of f
+          (when (or (nil? n) (< new-count n))
+            (recur (async/<!! channel) new-count)))))
+
     (catch Exception e
       (log/error e))))
+
+(defmacro as-future
+  [& body]
+  `(let [fid# (str (UUID/randomUUID))]
+    {:id     fid#
+     :future (future
+               ~@body
+               (println {:future-completed fid#}))}))
 
 (defmulti to
           "Provides facilities for streaming the content of the tracked channel to a given target."
           (fn [_ target & opts] (type target)))
 
-(defmethod to PrintWriter [{:keys [channel]} writer & {:keys [printer]
-                                                       :or   {printer #(puget/pprint % {:print-color true})}
-                                                       :as   opts}]
-  (future
+(defmethod to PrintWriter [{:keys [channel]} writer {:keys [printer]
+                                                     :or   {printer #(puget/pprint % {:print-color true})}
+                                                     :as   opts}]
+  (as-future
     (binding [*out* writer]
       (loop-channel channel printer opts))))
 
-(defmethod to String [{:keys [channel]} file-path & {:keys [printer]
-                                                     :or   {printer clojure.pprint/pprint}
-                                                     :as   opts}]
+(defmethod to String [{:keys [channel]} file-path {:keys [printer]
+                                                   :or   {printer clojure.pprint/pprint}
+                                                   :as   opts}]
   ; Stream to file
-  (future
+  (as-future
     (with-open [w (io/writer (io/file file-path))]
       (loop-channel channel #(printer % w) opts))))
 
-(defmethod to Atom [{:keys [channel]} a & {:as opts}]
-  (future
+(defmethod to Atom [{:keys [channel]} a opts]
+  (as-future
     (loop-channel channel #(swap! a conj %) opts)))
+
+(s/def ::to-opts (s/* (s/alt :n (s/cat :opt #(= % :n) :value pos-int?)
+                             :pred (s/cat :opt #(= % :pred) :value fn?))))
 
 (defn to-file
   "Writes all messages received in the channel to the specified file path using pprint. To use your own pretty printing function,
   use `(to consumer-channel f :printer <your print function>)`."
-  [consumer-channel f]
-  (to consumer-channel f))
+  [consumer-channel f & opts]
+  (to consumer-channel f opts))
 
 (s/fdef to-file
         :args (s/cat :consumer-channel ::consumer-channel
-                     :f (s/and string? (complement clojure.string/blank?)))
+                     :f (s/and string? (complement clojure.string/blank?))
+                     :opts ::to-opts)
         :ret future?)
 
 (defn to-stdout
   "Writes all messages received in the channel to stdout using pprint."
-  [consumer-channel]
-  (to consumer-channel *out*))
+  [consumer-channel & opts]
+  (to consumer-channel *out* opts))
 
 (s/fdef to-stdout
-        :args (s/cat :consumer-channel ::consumer-channel)
+        :args (s/cat :consumer-channel ::consumer-channel
+                     :opts ::to-opts)
         :ret future?)
 
 (defn to-atom
   "Appends all messages received in the channel to the specified atom using conj. This means that the atom should be
   initialised with an empty collection - e.g. `(atom [])`"
-  [consumer-channel a]
-  (to consumer-channel a))
+  [consumer-channel a & opts]
+  (to consumer-channel a opts))
 
 (s/fdef to-atom
         :args (s/cat :consumer-channel ::consumer-channel
-                     :a #(instance? Atom %))
+                     :a #(instance? Atom %)
+                     :opts ::to-opts)
         :ret future?)
 
 (defn progress

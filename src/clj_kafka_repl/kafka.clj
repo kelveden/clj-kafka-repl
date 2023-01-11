@@ -386,15 +386,15 @@
   | `:key-deserializer`  | `nil`   | Deserializer to use to deserialize the message key. Overrides the value in config. Defaults to a string deserializer. |
   | `:value-deserializer`| `nil`   | Deserializer to use to deserialize the message value. Overrides the value in config. Defaults to a string deserializer. |
   | `:limit`             | `nil`   | The maximum number of messages to pull back either into the stream or the results vector (depending on stream mode). |
-  | `:predicate`         | `(constantly true)` | Predicate to filter each incoming message. |"
-  [topic & {:keys [partition offset partition-offsets key-deserializer value-deserializer limit predicate]
+  | `:pred`              | `(constantly true)` | Predicate to filter each incoming message. |"
+  [topic & {:keys [partition offset partition-offsets key-deserializer value-deserializer limit pred]
             :or   {partition          nil
                    offset             :end
                    partition-offsets  nil
                    key-deserializer   (default-key-deserializer)
                    value-deserializer (default-value-deserializer)
                    limit              nil
-                   predicate          (constantly true)}}]
+                   pred               (constantly true)}}]
   (let [topic-name       (->topic-name topic)
         kafka-config     (:kafka-config *config*)
         group-id         (str "clj-kafka-repl-" (UUID/randomUUID))
@@ -484,7 +484,7 @@
             (let [messages (->> (.poll consumer (Duration/ofMillis 2000))
                                 (map cr->kafka-message))
                   filtered (->> messages
-                                (filter predicate)
+                                (filter pred)
                                 (take (- (or limit Long/MAX_VALUE)
                                          @count-atom)))]
 
@@ -493,6 +493,7 @@
                                      (assoc-in [:by-partition partition] (inc offset))
                                      (update :total-received inc))))
 
+              ; Push filtered messages to the channel
               (doseq [msg filtered]
                 (when (not (async-protocols/closed? ch))
                   (swap! count-atom inc)
@@ -604,7 +605,7 @@
         args       (concat [topic-name
                             :offset (dec offset)
                             :limit 1
-                            :filter-fn #(= offset (:offset %))]
+                            :predicate #(= offset (:offset %))]
                            (when (some? partition) [:partition partition])
                            (when (some? value-deserializer) [:value-deserializer value-deserializer]))
         ch         (apply consumer-chan args)
