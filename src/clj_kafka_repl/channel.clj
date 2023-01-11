@@ -8,8 +8,7 @@
             [clojure.tools.logging :as log]
             [clojure.pprint])
   (:import (clojure.lang Atom)
-           (java.io PrintWriter)
-           (java.util UUID)))
+           (java.io PrintWriter)))
 
 (s/def ::progress-fn fn?)
 (s/def ::channel #(satisfies? async-protocols/Channel %))
@@ -24,7 +23,8 @@
     (async/close! channel)))
 
 (s/fdef close!
-        :args (s/cat :consumer-channel ::consumer-channel))
+        :args (s/cat :ch (s/or :consumer-channel ::consumer-channel
+                               :channel ::channel)))
 
 (defn poll!
   "Reads off the next value (if any) from the specified channel."
@@ -36,7 +36,7 @@
         :ret any?)
 
 (defn skip!
-  "Consumes and skips n items from the channel."
+  "Consumes and skips n items from the consumer channel."
   [{:keys [channel]} n]
   (loop [x 0 offset nil partition nil]
     (let [result {:count     x
@@ -57,24 +57,26 @@
 
 (defn closed?
   "Returns flag indicating whether the specified channel is closed."
-  [{:keys [channel]}]
-  (async-protocols/closed? channel))
+  [ch]
+  (let [channel (if (s/valid? ::consumer-channel ch)
+                  (:channel ch)
+                  ch)]
+    (async-protocols/closed? channel)))
 
 (s/fdef closed?
-        :args (s/cat :consumer-channel ::consumer-channel))
+        :args (s/cat :ch (s/or :consumer-channel ::consumer-channel
+                               :channel ::channel)))
 
-(defn- loop-channel
-  [channel fn {:keys [pred transformer n] :or {pred        any?
-                                               transformer identity
-                                               n           nil}}]
+(defn- loop-channel-to-sink
+  [channel sink-fn {:keys [pred n] :or {pred any?
+                                        n    nil}}]
   (try
     (loop [next            (async/<!! channel)
            processed-count 0]
       (when next
         (let [process?  (pred next)
               new-count (cond-> processed-count process? inc)]
-          (when process?
-            (fn (transformer next)))
+          (when process? (sink-fn next))
 
           ; Limit looping to n invocations of f
           (when (or (nil? n) (< new-count n))
@@ -83,70 +85,110 @@
     (catch Exception e
       (log/error e))))
 
-(defmacro as-future
-  [& body]
-  `(let [fid# (str (UUID/randomUUID))]
-    {:id     fid#
-     :future (future
-               ~@body
-               (println {:future-completed fid#}))}))
+(s/def ::sink-opts (s/* (s/alt :n (s/cat :opt #(= % :n) :value pos-int?)
+                               :pred (s/cat :opt #(= % :pred) :value fn?))))
 
-(defmulti to
-          "Provides facilities for streaming the content of the tracked channel to a given target."
-          (fn [_ target & opts] (type target)))
+(defn writer-sink
+  "Creates a new sink to a specified PrintWriter - e.g. *out* for stdout."
+  [^PrintWriter writer & {:keys [printer]
+                          :or   {printer #(puget/pprint % {:print-color true})}
+                          :as   opts}]
+  (let [ch (async/chan)]
+    (future
+      (binding [*out* writer]
+        (loop-channel-to-sink ch printer opts))
+      (println :writer-sink-closed))
+    ch))
 
-(defmethod to PrintWriter [{:keys [channel]} writer {:keys [printer]
-                                                     :or   {printer #(puget/pprint % {:print-color true})}
-                                                     :as   opts}]
-  (as-future
-    (binding [*out* writer]
-      (loop-channel channel printer opts))))
+(s/fdef writer-sink
+        :args (s/cat :writer #(instance? PrintWriter %)
+                     :opts ::sink-opts)
+        :ret future?)
 
-(defmethod to String [{:keys [channel]} file-path {:keys [printer]
-                                                   :or   {printer clojure.pprint/pprint}
-                                                   :as   opts}]
-  ; Stream to file
-  (as-future
-    (with-open [w (io/writer (io/file file-path))]
-      (loop-channel channel #(printer % w) opts))))
+(defn file-sink
+  "Creates a new sink to a specified file path. Writes all messages received to the sink using pprint (can be overridden
+  with the printer option)."
+  [f & {:keys [printer]
+        :or   {printer clojure.pprint/pprint}
+        :as   opts}]
+  (let [ch (async/chan)]
+    (future
+      (with-open [w (io/writer (io/file f))]
+        (loop-channel-to-sink ch #(printer % w) opts)
+        (println :file-sink-closed)))
+    ch))
 
-(defmethod to Atom [{:keys [channel]} a opts]
-  (as-future
-    (loop-channel channel #(swap! a conj %) opts)))
+(s/fdef file-sink
+        :args (s/cat :f (s/and string? (complement clojure.string/blank?))
+                     :opts ::sink-opts)
+        :ret future?)
 
-(s/def ::to-opts (s/* (s/alt :n (s/cat :opt #(= % :n) :value pos-int?)
-                             :pred (s/cat :opt #(= % :pred) :value fn?))))
+(defn atom-sink
+  "Creates a new sink to a specified atom initialised with []."
+  [^Atom a & opts]
+  (let [ch (async/chan)]
+    (future
+      (loop-channel-to-sink ch #(swap! a conj %) opts)
+      (println :atom-sink-closed))
+    ch))
+
+(s/fdef atom-sink
+        :args (s/cat :atom #(instance? Atom %)
+                     :opts ::sink-opts)
+        :ret future?)
+
+(defn to-sinks!
+  "Starts sending data from the specified input channel to the specified sinks."
+  [{:keys [channel]} sinks & {:keys [close-sinks?]
+                              :or   {close-sinks? true}}]
+  (future
+    (try
+      (loop [next (async/<!! channel)]
+        (when next
+          (doseq [sink sinks] (async/>!! sink next))
+          (recur (async/<!! channel))))
+
+      (println :sending-to-sinks-completed)
+
+      (catch Exception e
+        (log/error e))
+      (finally
+        (when close-sinks?
+          (doseq [sink sinks] (async/close! sink)))))))
 
 (defn to-file
   "Writes all messages received in the channel to the specified file path using pprint. To use your own pretty printing function,
   use `(to consumer-channel f :printer <your print function>)`."
-  [consumer-channel f & opts]
-  (to consumer-channel f opts))
+  [ch f & opts]
+  (let [sink (apply file-sink (cons f (->> opts (into []) (flatten))))]
+    (to-sinks! ch [sink])))
 
 (s/fdef to-file
-        :args (s/cat :consumer-channel ::consumer-channel
+        :args (s/cat :ch ::consumer-channel
                      :f (s/and string? (complement clojure.string/blank?))
-                     :opts ::to-opts)
+                     :opts ::sink-opts)
         :ret future?)
 
 (defn to-stdout
-  "Writes all messages received in the channel to stdout using pprint."
-  [consumer-channel & opts]
-  (to consumer-channel *out* opts))
+  "Writes all messages received in the channel to stdout."
+  [ch & opts]
+  (let [sink (apply writer-sink (cons *out* (->> opts (into []) (flatten))))]
+    (to-sinks! ch [sink])))
 
 (s/fdef to-stdout
-        :args (s/cat :consumer-channel ::consumer-channel
+        :args (s/cat :ch ::consumer-channel
                      :opts ::to-opts)
         :ret future?)
 
 (defn to-atom
   "Appends all messages received in the channel to the specified atom using conj. This means that the atom should be
   initialised with an empty collection - e.g. `(atom [])`"
-  [consumer-channel a & opts]
-  (to consumer-channel a opts))
+  [ch a & opts]
+  (let [sink (apply atom-sink (cons a (->> opts (into []) (flatten))))]
+    (to-sinks! ch [sink])))
 
 (s/fdef to-atom
-        :args (s/cat :consumer-channel ::consumer-channel
+        :args (s/cat :ch ::consumer-channel
                      :a #(instance? Atom %)
                      :opts ::to-opts)
         :ret future?)
