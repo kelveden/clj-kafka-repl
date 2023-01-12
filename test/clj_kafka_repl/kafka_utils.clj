@@ -1,19 +1,16 @@
 (ns clj-kafka-repl.kafka-utils
-  (:require [clj-kafka-repl.kafka :refer [normalize-config]]
-            [clj-nippy-serde.serialization :as nser]
-            [clojure.tools.logging :as log]
-            [kafka-avro-confluent.deserializers :refer [->avro-deserializer]]
-            [kafka-avro-confluent.serializers :refer [->avro-serializer]])
+  (:require
+    [clj-kafka-repl.core :as core]
+    [clj-kafka-repl.kafka :refer [normalize-config]]
+    [clojure.tools.logging :as log])
   (:import (java.time Duration)
-           (java.util Properties UUID)
+           (java.util UUID)
            (java.util UUID)
            (org.apache.kafka.clients.admin AdminClient NewTopic)
            (org.apache.kafka.clients.consumer KafkaConsumer)
            (org.apache.kafka.clients.producer KafkaProducer ProducerRecord)
            (org.apache.kafka.common TopicPartition)
            (org.apache.kafka.common.serialization StringDeserializer StringSerializer)))
-
-(def ^:dynamic *convert-logical-types?* false)
 
 (defn get-partition-count
   [kafka-config topic]
@@ -27,10 +24,43 @@
         (.partitions)
         (.size))))
 
+(defn- ConsumerRecord->m [cr]
+  (if (bytes? (.value cr))
+    (.value cr)
+    (-> (.value cr)
+        (with-meta (merge {:offset    (.offset cr)
+                           :partition (.partition cr)
+                           :topic     (.topic cr)
+                           :timestamp (.timestamp cr)
+                           :key       (.key cr)}
+                          (meta (.value cr)))))))
+
+(defn poll*
+  [consumer & {:keys [expected-msgs retries poll-timeout]
+               :or   {expected-msgs 1
+                      retries       1250
+                      poll-timeout  10}}]
+  (loop [received []
+         retries  retries]
+    (if (or (>= (count received) expected-msgs)
+            (zero? retries))
+      received
+      (recur (concat received
+                     (->> (.poll consumer (Duration/ofMillis poll-timeout))
+                          (map ConsumerRecord->m)))
+             (dec retries)))))
+
+(defn ensure-topic
+  [topic partition-count]
+  (with-open [admin (-> core/*config* :kafka-config normalize-config (AdminClient/create))]
+    (log/infof "==> Ensuring topic %s." topic)
+    (.createTopics admin [(NewTopic. topic partition-count (short 1))])))
+
 (defn with-consumer
-  [kafka-config value-deserializer topic group-id partition-count f & {:keys [seek-to]
-                                                                       :or   {seek-to :end}}]
-  (let [consumer-config  (-> kafka-config
+  [value-deserializer topic group-id partition-count f & {:keys [seek-to]
+                                                          :or   {seek-to :end}}]
+  (let [kafka-config     (:kafka-config core/*config*)
+        consumer-config  (-> kafka-config
                              (assoc :group.id group-id)
                              normalize-config)
         _                (log/infof "==> Consumer config: %s" consumer-config)
@@ -61,57 +91,10 @@
       (finally
         (.close consumer)))))
 
-(defn with-avro-consumer
-  ([kafka-config schema-registry topic partition-count f]
-   (let [group-id           (str (UUID/randomUUID))
-         value-deserializer (->avro-deserializer schema-registry :convert-logical-types? *convert-logical-types?*)]
-     (with-consumer kafka-config value-deserializer topic group-id partition-count f)))
-  ([kafka-config schema-registry topic f]
-   (with-avro-consumer kafka-config schema-registry topic :all f)))
-
-(defn with-nippy-consumer
-  ([kafka-config topic partition-count f]
-   (let [group-id           (str (UUID/randomUUID))
-         value-deserializer (nser/nippy-deserializer)]
-     (with-consumer kafka-config value-deserializer topic group-id partition-count f)))
-  ([kafka-config topic f]
-   (with-nippy-consumer kafka-config topic :all f)))
-
-(defn- ConsumerRecord->m [cr]
-  (if (bytes? (.value cr))
-    (.value cr)
-    (-> (.value cr)
-        (with-meta (merge {:offset    (.offset cr)
-                           :partition (.partition cr)
-                           :topic     (.topic cr)
-                           :timestamp (.timestamp cr)
-                           :key       (.key cr)}
-                          (meta (.value cr)))))))
-
-(defn poll*
-  [consumer & {:keys [expected-msgs retries poll-timeout]
-               :or   {expected-msgs 1
-                      retries       1250
-                      poll-timeout  10}}]
-  (loop [received []
-         retries  retries]
-    (if (or (>= (count received) expected-msgs)
-            (zero? retries))
-      received
-      (recur (concat received
-                     (->> (.poll consumer (Duration/ofMillis poll-timeout))
-                          (map ConsumerRecord->m)))
-             (dec retries)))))
-
-(defn ensure-topic
-  [kafka-config topic partition-count]
-  (with-open [admin (-> kafka-config normalize-config (AdminClient/create))]
-    (log/infof "==> Ensuring topic %s." topic)
-    (.createTopics admin [(NewTopic. topic partition-count (short 1))])))
-
 (defn with-producer
-  [kafka-config value-serializer f]
-  (let [producer-config (-> (merge kafka-config {:retries 3})
+  [value-serializer f]
+  (let [kafka-config    (:kafka-config core/*config*)
+        producer-config (-> (merge kafka-config {:retries 3 :partitioner.class "clj_kafka_repl.ExplicitPartitioner"})
                             normalize-config)
         _               (log/infof "==> Producer config: %s" producer-config)
 
@@ -122,36 +105,15 @@
       (finally
         (.close producer)))))
 
-(defn with-avro-producer
-  [kafka-config schema-registry schema f]
-  (with-producer kafka-config (->avro-serializer schema-registry schema) f))
-
-(defn with-nippy-producer
-  [kafka-config f]
-  (with-producer kafka-config (nser/nippy-serializer) f))
-
 (defn produce
-  ([producer topic records]
-   (doseq [r records]
-     (let [[k v] (if (vector? r)
-                   r
-                   [(str (UUID/randomUUID)) r])]
-       (log/debugf "Producing record %s to key %s on topic %s." v k topic)
-       (deref
-         (.send producer
-                (ProducerRecord. topic k v)))))
+  [producer topic records]
+  (doseq [r records]
+    (let [[k v] (if (vector? r)
+                  r
+                  [(str (UUID/randomUUID)) r])]
+      (log/debugf "Producing record %s to key %s on topic %s." v k topic)
+      (deref
+        (.send producer
+               (ProducerRecord. topic k v)))))
 
-   (.flush producer))
-  ([kafka-config value-serializer topic records]
-   (with-producer kafka-config value-serializer
-                  (fn [producer]
-                    (produce producer topic records)))))
-
-(defn produce-avro
-  [kafka-config schema-registry schema topic & records]
-  (apply produce kafka-config (->avro-serializer schema-registry schema) topic records))
-
-(defn produce-nippy
-  [kafka-config schema-registry schema topic & records]
-  (apply produce kafka-config (->avro-serializer schema-registry schema) topic records))
-
+  (.flush producer))

@@ -1,48 +1,26 @@
 (ns clj-kafka-repl.kafka-test
   (:require [clj-kafka-repl.confirm :as confirm]
-            [clj-kafka-repl.core :as core]
             [clj-kafka-repl.explicit-partitioner :as ep]
             [clj-kafka-repl.kafka :as sut]
             [clj-kafka-repl.kafka-utils :as kafka-utils :refer [ensure-topic]]
-            [clj-kafka-repl.test-utils :refer [init-logging! random-id with-edn-consumer with-edn-producer]]
+            [clj-kafka-repl.test-utils :refer [init-logging! random-id with-edn-consumer with-edn-producer with-kafka]]
             [clojure.test :refer :all]
-            [clojure.tools.logging :as log])
-  (:import (org.testcontainers.containers KafkaContainer)
-           (org.testcontainers.utility DockerImageName)))
-
-(def ^:dynamic kafka-config nil)
-(def ^:dynamic producer-config nil)
+            [clojure.tools.logging :as log]))
 
 (use-fixtures
   :once
   (fn [f]
     (init-logging!)
     (log/infof "==> Starting kafka container...")
-
-    (let [kafka             (doto (KafkaContainer. (DockerImageName/parse "confluentinc/cp-kafka:6.2.1"))
-                              (.start))
-          bootstrap-servers (-> (.getBootstrapServers kafka)
-                                (clojure.string/replace "PLAINTEXT://" ""))
-          core-config       {:bootstrap.servers bootstrap-servers}]
-      (try
-        (binding [kafka-config    core-config
-                  producer-config (assoc core-config :partitioner.class "clj_kafka_repl.ExplicitPartitioner")
-                  core/*config*   {:kafka-config core-config}
-                  core/*options*  {}]
-          (log/infof "==> Using kafka config %s." kafka-config)
-          (f))
-        (finally
-          (.stop kafka)
-          (log/infof "==> Stopped kafka container."))))))
+    (with-kafka f)))
 
 (deftest can-set-group-offsets-to-start
   (let [topic (random-id)]
     ; GIVEN a topic
-    (ensure-topic kafka-config topic 2)
+    (ensure-topic topic 2)
 
     ; AND some messages pushed to the topic across all partitions
     (with-edn-producer
-      producer-config
       (fn [producer]
         (kafka-utils/produce producer topic [(ep/m->to-explicit-partitionable {:value "message1-0"} 0)
                                              (ep/m->to-explicit-partitionable {:value "message1-1"} 1)
@@ -52,7 +30,7 @@
     (let [group-id (random-id)]
       ; AND a consumer starting from the end of the topic
       (with-edn-consumer
-        kafka-config topic group-id :end
+        topic group-id :end
         (fn [consumer]
           (.commitSync consumer)
           (is (= [[0 2] [1 2]] (sut/get-group-offsets topic group-id)))
@@ -63,18 +41,17 @@
 
       ; THEN all the messages are consumed
       (with-edn-consumer
-        kafka-config topic group-id nil
+        topic group-id nil
         (fn [consumer]
           (is (= 4 (count (kafka-utils/poll* consumer :expected-msgs 4)))))))))
 
 (deftest can-set-group-offsets-to-end
   (let [topic (random-id)]
     ; GIVEN a topic
-    (ensure-topic kafka-config topic 2)
+    (ensure-topic topic 2)
 
     ; AND some messages pushed to the topic across all partitions
     (with-edn-producer
-      producer-config
       (fn [producer]
         (kafka-utils/produce producer topic [(ep/m->to-explicit-partitionable {:value "message1-0"} 0)
                                              (ep/m->to-explicit-partitionable {:value "message1-1"} 1)])))
@@ -82,7 +59,7 @@
     (let [group-id (random-id)]
       ; AND a consumer starting at the start of the topic
       (with-edn-consumer
-        kafka-config topic group-id :start
+        topic group-id :start
         (fn [consumer]
           (.commitSync consumer)
           (is (= [[0 0] [1 0]] (sut/get-group-offsets topic group-id)))
@@ -98,11 +75,10 @@
 (deftest can-set-group-offset-to-absolute-offset
   (let [topic (random-id)]
     ; GIVEN a topic
-    (ensure-topic kafka-config topic 2)
+    (ensure-topic topic 2)
 
     ; AND some messages pushed to the topic across all partitions
     (with-edn-producer
-      producer-config
       (fn [producer]
         (kafka-utils/produce producer topic [(ep/m->to-explicit-partitionable {:value "message1-0"} 0)
                                              (ep/m->to-explicit-partitionable {:value "message1-1"} 1)
@@ -112,7 +88,7 @@
     (let [group-id (random-id)]
       ; AND a consumer starting at the start of the topic
       (with-edn-consumer
-        kafka-config topic group-id :start
+        topic group-id :start
         (fn [consumer]
           (.commitSync consumer)
           (is (= [[0 0] [1 0]] (sut/get-group-offsets topic group-id)))
@@ -126,7 +102,7 @@
       (is (= [[0 1] [1 0]] (sut/get-group-offsets topic group-id)))
 
       (with-edn-consumer
-        kafka-config topic group-id nil
+        topic group-id nil
         (fn [consumer]
           (let [events (kafka-utils/poll* consumer :expected-msgs 3)]
             (is (= 3 (count events)))
@@ -135,11 +111,10 @@
 (deftest can-set-group-offsets-to-relative-offsets
   (let [topic (random-id)]
     ; GIVEN a topic
-    (ensure-topic kafka-config topic 2)
+    (ensure-topic topic 2)
 
     ; AND some messages pushed to the topic across all partitions
     (with-edn-producer
-      producer-config
       (fn [producer]
         (kafka-utils/produce producer topic [(ep/m->to-explicit-partitionable {:value "message1-0"} 0)
                                              (ep/m->to-explicit-partitionable {:value "message1-1"} 1)
@@ -149,7 +124,7 @@
     (let [group-id (random-id)]
       ; AND a consumer starting at the start of the topic
       (with-edn-consumer
-        kafka-config topic group-id :end
+        topic group-id :end
         (fn [consumer]
           (.commitSync consumer)
           (is (= [[0 2] [1 2]] (sut/get-group-offsets topic group-id)))
@@ -163,7 +138,7 @@
       (is (= [[0 1] [1 2]] (sut/get-group-offsets topic group-id)))
 
       (with-edn-consumer
-        kafka-config topic group-id nil
+        topic group-id nil
         (fn [consumer]
           (let [events (kafka-utils/poll* consumer)]
             (is (= 1 (count events)))
