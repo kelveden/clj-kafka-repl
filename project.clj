@@ -1,19 +1,18 @@
 (defproject ovotech/clj-kafka-repl "0.1.0"
-  :dependencies [[aero "1.1.5"]
-                 [bigsy/clj-nippy-serde "0.1.0"]
-                 [cheshire "5.9.0"]
-                 [clojure.java-time "0.3.2"]
+  :dependencies [[bigsy/clj-nippy-serde "0.1.3"]
+                 [cheshire "5.11.0"]
+                 [clojure.java-time "1.2.0"]
                  [clojure-term-colors "0.1.0"]
-                 [mvxcvi/puget "1.2.0"]
-                 [org.apache.kafka/kafka-clients "2.3.0"]
-                 [org.clojure/clojure "1.10.1"]
-                 [org.clojure/core.async "0.7.559"]
-                 [org.clojure/tools.logging "0.5.0"]
-                 [org.slf4j/jcl-over-slf4j "1.7.30"]
-                 [org.slf4j/jul-to-slf4j "1.7.30"]
-                 [org.slf4j/log4j-over-slf4j "1.7.30"]
-                 [org.slf4j/slf4j-api "1.7.30"]
-                 [ovotech/kafka-avro-confluent "2.1.0-5"]]
+                 [mvxcvi/puget "1.3.4"]
+                 [org.apache.kafka/kafka-clients "2.7.2"]
+                 [org.clojure/clojure "1.11.1"]
+                 [org.clojure/core.async "1.6.673"]
+                 [org.clojure/tools.logging "1.2.4"]
+                 [org.slf4j/jcl-over-slf4j "2.0.6"]
+                 [org.slf4j/jul-to-slf4j "2.0.6"]
+                 [org.slf4j/log4j-over-slf4j "2.0.6"]
+                 [org.slf4j/slf4j-api "2.0.6"]
+                 [ovotech/kafka-avro-confluent "2.7.0-1"]]
 
   :plugins [[mvxcvi/whidbey "2.0.0"]
             [lein-codox "0.10.8"]]
@@ -38,10 +37,10 @@
                               (clojure.term.colors/magenta "(help ns)")
                               (clojure.term.colors/yellow " for more information.")))}
 
-  :profiles {:dev  {:dependencies   [[ch.qos.logback/logback-classic "1.2.3"]
-                                     [ch.qos.logback/logback-core "1.2.3"]
-                                     [lambdaisland/kaocha "0.0-581"]
-                                     [vise890/zookareg "2.3.0-1"]]
+  :profiles {:dev  {:dependencies   [[ch.qos.logback/logback-classic "1.4.5"]
+                                     [ch.qos.logback/logback-core "1.4.5"]
+                                     [lambdaisland/kaocha "1.72.1136"]
+                                     [vise890/zookareg "2.7.0-1"]]
 
                     :eftest         {:multithread? false}
                     :resource-paths ["test/resources"]

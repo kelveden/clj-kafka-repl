@@ -8,7 +8,7 @@
             [clojure.tools.logging :as log]
             [clojure.pprint])
   (:import (clojure.lang Atom)
-           (java.io PrintWriter)))
+           (java.io PrintWriter Writer)))
 
 (s/def ::progress-fn fn?)
 (s/def ::channel #(satisfies? async-protocols/Channel %))
@@ -89,19 +89,19 @@
                                :pred (s/cat :opt #(= % :pred) :value fn?))))
 
 (defn writer-sink
-  "Creates a new sink to a specified PrintWriter - e.g. *out* for stdout.
+  "Creates a new sink to a specified Writer - e.g. *out* for stdout.
 
   | key                  | default | description |
   |:---------------------|:--------|:------------|
   | `:printer`           | `#(puget/pprint % {:print-color true})` | The function to use to print the content to the writer. |
   | `:pred`              | `any?`  | A predicate to filter messages from the input channel with. |
   | `:n`                 | `nil`   | A limit to the number of messages that will be written to the sink before it closes. |"
-  [^PrintWriter writer & {:keys [printer]
-                          :or   {printer #(puget/pprint % {:print-color true})}
-                          :as   opts}]
+  [^Writer writer & {:keys [printer]
+                     :or   {printer #(puget/pprint % {:print-color true})}
+                     :as   opts}]
   (let [ch (async/chan)]
     (future
-      (binding [*out* writer]
+      (binding [*out* (PrintWriter. writer)]
         (loop-channel-to-sink ch printer opts))
       (println :writer-sink-closed))
     ch))

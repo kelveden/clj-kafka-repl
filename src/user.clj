@@ -65,18 +65,17 @@
 ; * A zookeeper + kafka + schema registry running locally - there's a docker-compose.yaml in the root for this purpose.
 ; * The following configuration in your ~/.clj-kafka-repl/config.edn:
 ;
-; {:default-value-serializer   :string
-;  :default-value-deserializer :string
-;
-;  :profiles
-;  {:dev
-;   {:kafka-config
-;    {:bootstrap.servers "localhost:9092"},
-;
-;    :schema-registry-config
-;    {:base-url "http://localhost:8081"}}}}
-;
-;
+{:default-value-serializer   :string
+ :default-value-deserializer :string
+
+ :profiles
+ {:dev
+  {:kafka-config
+   {:bootstrap.servers "localhost:9092"},
+
+   :schema-registry-config
+   {:base-url "http://localhost:8081"}}}}
+
 (comment
   ; List all the topics available
   (with :dev (kafka/get-topics))

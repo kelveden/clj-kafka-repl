@@ -24,7 +24,7 @@
 (deftest can-set-group-offsets-to-start
   (let [topic (random-id)]
     ; GIVEN a topic
-    (ensure-topic topic 2)
+    (ensure-topic kafka-config topic 2)
 
     ; AND some messages pushed to the topic across all partitions
     (with-edn-producer
@@ -56,7 +56,7 @@
 (deftest can-set-group-offsets-to-end
   (let [topic (random-id)]
     ; GIVEN a topic
-    (ensure-topic topic 2)
+    (ensure-topic kafka-config topic 2)
 
     ; AND some messages pushed to the topic across all partitions
     (with-edn-producer
@@ -84,7 +84,7 @@
 (deftest can-set-group-offset-to-absolute-offset
   (let [topic (random-id)]
     ; GIVEN a topic
-    (ensure-topic topic 2)
+    (ensure-topic kafka-config topic 2)
 
     ; AND some messages pushed to the topic across all partitions
     (with-edn-producer
@@ -121,7 +121,7 @@
 (deftest can-set-group-offsets-to-relative-offsets
   (let [topic (random-id)]
     ; GIVEN a topic
-    (ensure-topic topic 2)
+    (ensure-topic kafka-config topic 2)
 
     ; AND some messages pushed to the topic across all partitions
     (with-edn-producer

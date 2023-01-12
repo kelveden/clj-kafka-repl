@@ -4,12 +4,11 @@
             [clojure.tools.logging :as log]
             [kafka-avro-confluent.deserializers :refer [->avro-deserializer]]
             [kafka-avro-confluent.serializers :refer [->avro-serializer]])
-  (:import (java.time Duration)
+  (:import (io.confluent.kafka.schemaregistry.utils ZkUtils)
+           (java.time Duration)
            (java.util Properties UUID)
            (java.util UUID)
-           (kafka.admin AdminUtils RackAwareMode$Enforced$)
-           (kafka.utils ZKStringSerializer$ ZkUtils)
-           (org.apache.kafka.clients.admin KafkaAdminClient)
+           (org.apache.kafka.clients.admin AdminClient NewTopic)
            (org.apache.kafka.clients.consumer KafkaConsumer)
            (org.apache.kafka.clients.producer KafkaProducer ProducerRecord)
            (org.apache.kafka.common TopicPartition)
@@ -20,7 +19,7 @@
 
 (defn get-partition-count
   [kafka-config topic]
-  (with-open [admin (-> kafka-config normalize-config (KafkaAdminClient/create))]
+  (with-open [admin (-> kafka-config normalize-config (AdminClient/create))]
     (-> (.describeTopics admin [topic])
         (.values)
         (.entrySet)
@@ -105,13 +104,9 @@
              (dec retries)))))
 
 (defn ensure-topic
-  [topic partition-count]
-  (with-open [zk (ZkClient. "localhost:2181" 1000 1000 (ZKStringSerializer$/MODULE$))]
-    (let [zc (ZkConnection. "localhost:2181")
-          zu (ZkUtils. zk zc false)]
-      (AdminUtils/createTopic zu topic partition-count 1
-                              (Properties.)
-                              (RackAwareMode$Enforced$.)))))
+  [kafka-config topic partition-count]
+  (with-open [admin (-> kafka-config normalize-config (AdminClient/create))]
+    (.createTopics admin [(NewTopic. topic partition-count (short 1))])))
 
 (defn with-producer
   [kafka-config value-serializer f]
