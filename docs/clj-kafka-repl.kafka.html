@@ -5,13 +5,6 @@
 </div></div></div><div class="public anchor" id="var--.3Eavro-serializer"><h3>-&gt;avro-serializer</h3><div class="usage"><code>(-&gt;avro-serializer schema)</code></div><div class="doc"><div class="markdown"><p>Creates a new serializer for use in producing avro messages.</p>
 </div></div></div><div class="public anchor" id="var-consumer-chan"><h3>consumer-chan</h3><div class="usage"><code>(consumer-chan topic &amp; {:keys [partition offset partition-offsets key-deserializer value-deserializer limit pred], :or {partition nil, offset :end, partition-offsets nil, key-deserializer (default-key-deserializer), value-deserializer (default-value-deserializer), limit nil, pred (constantly true)}})</code></div><div class="doc"><div class="markdown"><p>Opens a consumer over the specified topic and returns a ::ch/consumer-channel which is a wrapper over a core.async channel.</p>
 <p>The channel will stay open indefinitely unless either: a) the channel is explicitly closed using ch/close! or b) the specified message limit is reached.</p>
-<p>Examples of pulling data from channels:</p>
-<ul>
-<li>Pop the next message (if any) from the channel: (<a href="null">ch/poll!</a> tc)</li>
-<li>Stream channel to file: (<a href="null">ch/to-file</a> tc “/workspace/temp/your-file”)</li>
-<li>Stream channel to stdout: (<a href="null">ch/to-stdout</a> tc)</li>
-<li>And then close the channel with: (<a href="null">ch/close!</a> tc)</li>
-</ul>
 <table>
 <thead>
 <tr><th align="left"> key                  </th><th align="left"> default </th><th align="left"> description </th></tr>

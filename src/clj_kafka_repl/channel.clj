@@ -89,7 +89,13 @@
                                :pred (s/cat :opt #(= % :pred) :value fn?))))
 
 (defn writer-sink
-  "Creates a new sink to a specified PrintWriter - e.g. *out* for stdout."
+  "Creates a new sink to a specified PrintWriter - e.g. *out* for stdout.
+
+  | key                  | default | description |
+  |:---------------------|:--------|:------------|
+  | `:printer`           | `#(puget/pprint % {:print-color true})` | The function to use to print the content to the writer. |
+  | `:pred`              | `any?`  | A predicate to filter messages from the input channel with. |
+  | `:n`                 | `nil`   | A limit to the number of messages that will be written to the sink before it closes. |"
   [^PrintWriter writer & {:keys [printer]
                           :or   {printer #(puget/pprint % {:print-color true})}
                           :as   opts}]
@@ -107,7 +113,13 @@
 
 (defn file-sink
   "Creates a new sink to a specified file path. Writes all messages received to the sink using pprint (can be overridden
-  with the printer option)."
+  with the printer option).
+
+  | key                  | default | description |
+  |:---------------------|:--------|:------------|
+  | `:printer`           | `clojure.pprint/pprint` | The function to use to print the content to file. |
+  | `:pred`              | `any?`  | A predicate to filter messages from the input channel with. |
+  | `:n`                 | `nil`   | A limit to the number of messages that will be written to the sink before it closes. |"
   [f & {:keys [printer]
         :or   {printer clojure.pprint/pprint}
         :as   opts}]
@@ -124,7 +136,12 @@
         :ret future?)
 
 (defn atom-sink
-  "Creates a new sink to a specified atom initialised with []."
+  "Creates a new sink to a specified atom initialised with [].
+
+  | key                  | default | description |
+  |:---------------------|:--------|:------------|
+  | `:pred`              | `any?`  | A predicate to filter messages from the input channel with. |
+  | `:n`                 | `nil`   | A limit to the number of messages that will be written to the sink before it closes. |"
   [^Atom a & opts]
   (let [ch (async/chan)]
     (future
@@ -138,7 +155,11 @@
         :ret future?)
 
 (defn to-sinks!
-  "Starts sending data from the specified input channel to the specified sinks."
+  "Starts sending data from the specified input channel to the specified sinks.
+
+  | key                  | default | description |
+  |:---------------------|:--------|:------------|
+  | `:close-sinks?`      | `true`  | Whether to close all sinks once the input channel closes. |"
   [{:keys [channel]} sinks & {:keys [close-sinks?]
                               :or   {close-sinks? true}}]
   (future
@@ -157,8 +178,10 @@
           (doseq [sink sinks] (async/close! sink)))))))
 
 (defn to-file
-  "Writes all messages received in the channel to the specified file path using pprint. To use your own pretty printing function,
-  use `(to consumer-channel f :printer <your print function>)`."
+  "Convenience function that handles creating a new file-sink and directing all content from the incoming consumer
+  channel to the file. The sink will be closed as soon as the input channel is closed.
+
+  See channel/file-sink for option details."
   [ch f & opts]
   (let [sink (apply file-sink (cons f (->> opts (into []) (flatten))))]
     (to-sinks! ch [sink])))
@@ -170,19 +193,24 @@
         :ret future?)
 
 (defn to-stdout
-  "Writes all messages received in the channel to stdout."
+  "Convenience function that handles creating a new writer-sink to *out* and directing all content from the incoming consumer
+  channel to the writer. The sink will be closed as soon as the input channel is closed.
+
+  See channel/writer-sink for option details."
   [ch & opts]
   (let [sink (apply writer-sink (cons *out* (->> opts (into []) (flatten))))]
     (to-sinks! ch [sink])))
 
 (s/fdef to-stdout
         :args (s/cat :ch ::consumer-channel
-                     :opts ::to-opts)
+                     :opts ::sink-opts)
         :ret future?)
 
 (defn to-atom
-  "Appends all messages received in the channel to the specified atom using conj. This means that the atom should be
-  initialised with an empty collection - e.g. `(atom [])`"
+  "Convenience function that handles creating a new atom-sink and appending all content from the incoming consumer
+  channel to the atom. The sink will be closed as soon as the input channel is closed.
+
+  See channel/atom-sink for option details."
   [ch a & opts]
   (let [sink (apply atom-sink (cons a (->> opts (into []) (flatten))))]
     (to-sinks! ch [sink])))
@@ -190,7 +218,7 @@
 (s/fdef to-atom
         :args (s/cat :ch ::consumer-channel
                      :a #(instance? Atom %)
-                     :opts ::to-opts)
+                     :opts ::sink-opts)
         :ret future?)
 
 (defn progress

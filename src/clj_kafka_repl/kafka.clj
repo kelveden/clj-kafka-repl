@@ -360,23 +360,18 @@
    :value          (.value cr)
    :type           (type (.value cr))})
 
+(defn- random-group-id
+  []
+  (let [group-id (format "clj-kafka-repl-%s" (UUID/randomUUID))]
+    (println (format "Will consume using group id %s..." group-id))
+    group-id))
+
 (defn consumer-chan
   "Opens a consumer over the specified topic and returns a ::ch/consumer-channel which is a wrapper over a core.async
   channel.
 
   The channel will stay open indefinitely unless either: a) the channel is explicitly closed using ch/close! or b)
   the specified message limit is reached.
-
-  Examples of pulling data from channels:
-
-  - Pop the next message (if any) from the channel:
-    ([[ch/poll!]] tc)
-  - Stream channel to file:
-    ([[ch/to-file]] tc \"/workspace/temp/your-file\")
-  - Stream channel to stdout:
-    ([[ch/to-stdout]] tc)
-  - And then close the channel with:
-    ([[ch/close!]] tc)
 
   | key                  | default | description |
   |:---------------------|:--------|:------------|
@@ -397,7 +392,7 @@
                    pred               (constantly true)}}]
   (let [topic-name       (->topic-name topic)
         kafka-config     (:kafka-config *config*)
-        group-id         (str "clj-kafka-repl-" (UUID/randomUUID))
+        group-id         (random-group-id)
         cc               (-> kafka-config
                              (assoc :group.id group-id
                                     :max.poll.records (cond
@@ -537,7 +532,7 @@
         at-millis    (jt/to-millis-from-epoch (jt/instant at))
 
         kafka-config (:kafka-config *config*)
-        group-id     (str "clj-kafka-repl-" (UUID/randomUUID))
+        group-id     (random-group-id)
         cc           (-> kafka-config
                          (assoc :group.id group-id)
                          (normalize-config))]
@@ -551,14 +546,12 @@
                                          [(.partition tp) [(.offset ot) (str (jt/instant (.timestamp ot)))]]))
                                   (sort-by first))]
         {:offsets               offsets
-         :earliest-by-offset    (->> offsets
-                                     (rest)
+         :earliest-by-offset    (->> (rest offsets)
                                      (reduce (fn [[_ [o _] :as curr]
                                                   [_ [o' _] :as new]]
                                                (if (< o' o) new curr))
                                              (first offsets)))
-         :earliest-by-timestamp (->> offsets
-                                     (rest)
+         :earliest-by-timestamp (->> (rest offsets)
                                      (reduce (fn [[_ [_ t] :as curr]
                                                   [_ [_ t'] :as new]]
                                                (if (jt/before? (jt/instant t') (jt/instant t)) new curr))
@@ -605,7 +598,7 @@
         args       (concat [topic-name
                             :offset (dec offset)
                             :limit 1
-                            :predicate #(= offset (:offset %))]
+                            :pred #(= offset (:offset %))]
                            (when (some? partition) [:partition partition])
                            (when (some? value-deserializer) [:value-deserializer value-deserializer]))
         ch         (apply consumer-chan args)

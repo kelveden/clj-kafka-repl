@@ -77,8 +77,6 @@
 ;    {:base-url "http://localhost:8081"}}}}
 ;
 ;
-
-
 (comment
   ; List all the topics available
   (with :dev (kafka/get-topics))

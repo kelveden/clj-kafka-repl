@@ -1,6 +1,8 @@
 clj-kafka-repl
 ==============
-> This is still a work in progress and should be considered very much "pre-alpha" for now. A lot of the functions are currently in an indeterminate state although the likes of `kafka/consumer-chan` and `kafka/get-lag` I've used recently and so should be fairly reliable. The whole project is crying out for some proper testing in a lot of places though.
+> This is still a work in progress and should be considered very much "pre-alpha" for now. A lot of the functions are
+> currently in an indeterminate state although the likes of `kafka/consumer-chan` and `kafka/get-lag` I've used recently
+> and so should be fairly reliable. The whole project is crying out for some proper testing in a lot of places though.
 
 General purpose Clojure REPL functions for interrogating Kafka.
 
@@ -11,18 +13,19 @@ Features
 
 The functionality provided in the `kafka` namespace can be split as follows:
 
+* Topic details: [get-earliest-offsets](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-earliest-offsets),
+  [get-latest-offsets](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-latest-offsets),
+  [get-offsets-at](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-offsets-at),
+  [get-topic-partitions](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-topic-partitions),
+  [get-topics](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-topics)
 * Consumer group offsets: [get-group-offset](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-group-offset),
- [get-group-offset](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-group-offsets), 
- [get-earliest-offsets](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-earliest-offsets),
- [get-latest-offsets](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-latest-offsets),
- [set-group-offsets!](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-set-group-offsets!)
+ [get-group-offsets](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-group-offsets), 
+ [set-group-offsets!](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-set-group-offsets!),
+ [get-lag](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-lag)
 * Consuming: [consumer-chan](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-consumer-chan), 
  [sample](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-sample),
- [get-message](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-message),
- [get-topic-partitions](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-topic-partitions),
+ [get-message](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-message)
 * Producing: [producer-chan](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-producer-chan)
-* Miscellaneous: [get-lag](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-lag),
- [get-topics](https://kelveden.github.io/clj-kafka-repl/clj-kafka-repl.kafka.html#var-get-topics) 
 
 Getting started
 ---------------
@@ -61,6 +64,8 @@ When you run one of the functions you will need to specify which profile to use.
 ```
 
 ### Examples
+
+
 
 You can find an example configuration and code to run from the REPL at the bottom of [user.clj](./src/user.clj).
 
@@ -122,7 +127,7 @@ Then you'll need to configure the kafka client in `~/.clj-kafka-repl/config.edn`
 
 Running tests
 -------------
-> There are *very* limited tests right now - we're working on building them up DDT-style...
+> There are *very* limited tests right now - I'm working on it...
 
 ```
 lein kaocha
