@@ -37,13 +37,13 @@
                               (clojure.term.colors/magenta "(help ns)")
                               (clojure.term.colors/yellow " for more information.")))}
 
-  :profiles {:dev  {:dependencies   [[ch.qos.logback/logback-classic "1.4.5"]
-                                     [ch.qos.logback/logback-core "1.4.5"]
-                                     [lambdaisland/kaocha "1.72.1136"]
-                                     [vise890/zookareg "2.7.0-1"]]
+  :profiles {:dev {:dependencies   [[ch.qos.logback/logback-classic "1.4.5"]
+                                    [ch.qos.logback/logback-core "1.4.5"]
+                                    [lambdaisland/kaocha "1.72.1136"]
+                                    [org.testcontainers/kafka "1.17.6"]]
 
-                    :eftest         {:multithread? false}
-                    :resource-paths ["test/resources"]
-                    :plugins        [[lein-eftest "0.4.2"]]
+                   :eftest         {:multithread? false}
+                   :resource-paths ["test/resources"]
+                   :plugins        [[lein-eftest "0.4.2"]]
 
-                    :repl-options   {:init-ns user}}})
+                   :repl-options   {:init-ns user}}})

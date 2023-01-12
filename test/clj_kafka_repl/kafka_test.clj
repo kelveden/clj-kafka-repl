@@ -6,20 +6,34 @@
             [clj-kafka-repl.kafka-utils :as kafka-utils :refer [ensure-topic]]
             [clj-kafka-repl.test-utils :refer [init-logging! random-id with-edn-consumer with-edn-producer]]
             [clojure.test :refer :all]
-            [zookareg.core :as zkr]))
+            [clojure.tools.logging :as log])
+  (:import (org.testcontainers.containers KafkaContainer)
+           (org.testcontainers.utility DockerImageName)))
 
-(def kafka-config {:bootstrap.servers "127.0.0.1:9092"})
-(def producer-config (assoc kafka-config
-                       :partitioner.class "clj_kafka_repl.ExplicitPartitioner"))
+(def ^:dynamic kafka-config nil)
+(def ^:dynamic producer-config nil)
 
 (use-fixtures
   :once
   (fn [f]
     (init-logging!)
+    (log/infof "==> Starting kafka container...")
 
-    (binding [core/*config*  {:kafka-config kafka-config}
-              core/*options* {}]
-      (zkr/with-zookareg-fn f))))
+    (let [kafka             (doto (KafkaContainer. (DockerImageName/parse "confluentinc/cp-kafka:6.2.1"))
+                              (.start))
+          bootstrap-servers (-> (.getBootstrapServers kafka)
+                                (clojure.string/replace "PLAINTEXT://" ""))
+          core-config       {:bootstrap.servers bootstrap-servers}]
+      (try
+        (binding [kafka-config    core-config
+                  producer-config (assoc core-config :partitioner.class "clj_kafka_repl.ExplicitPartitioner")
+                  core/*config*   {:kafka-config core-config}
+                  core/*options*  {}]
+          (log/infof "==> Using kafka config %s." kafka-config)
+          (f))
+        (finally
+          (.stop kafka)
+          (log/infof "==> Stopped kafka container."))))))
 
 (deftest can-set-group-offsets-to-start
   (let [topic (random-id)]

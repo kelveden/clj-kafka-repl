@@ -4,16 +4,14 @@
             [clojure.tools.logging :as log]
             [kafka-avro-confluent.deserializers :refer [->avro-deserializer]]
             [kafka-avro-confluent.serializers :refer [->avro-serializer]])
-  (:import (io.confluent.kafka.schemaregistry.utils ZkUtils)
-           (java.time Duration)
+  (:import (java.time Duration)
            (java.util Properties UUID)
            (java.util UUID)
            (org.apache.kafka.clients.admin AdminClient NewTopic)
            (org.apache.kafka.clients.consumer KafkaConsumer)
            (org.apache.kafka.clients.producer KafkaProducer ProducerRecord)
            (org.apache.kafka.common TopicPartition)
-           (org.apache.kafka.common.serialization StringDeserializer StringSerializer)
-           (org.I0Itec.zkclient ZkClient ZkConnection)))
+           (org.apache.kafka.common.serialization StringDeserializer StringSerializer)))
 
 (def ^:dynamic *convert-logical-types?* false)
 
@@ -35,6 +33,8 @@
   (let [consumer-config  (-> kafka-config
                              (assoc :group.id group-id)
                              normalize-config)
+        _                (log/infof "==> Consumer config: %s" consumer-config)
+
         key-deserializer (StringDeserializer.)
         consumer         (KafkaConsumer. consumer-config
                                          key-deserializer
@@ -106,12 +106,15 @@
 (defn ensure-topic
   [kafka-config topic partition-count]
   (with-open [admin (-> kafka-config normalize-config (AdminClient/create))]
+    (log/infof "==> Ensuring topic %s." topic)
     (.createTopics admin [(NewTopic. topic partition-count (short 1))])))
 
 (defn with-producer
   [kafka-config value-serializer f]
   (let [producer-config (-> (merge kafka-config {:retries 3})
                             normalize-config)
+        _               (log/infof "==> Producer config: %s" producer-config)
+
         key-serializer  (StringSerializer.)
         producer        (KafkaProducer. producer-config key-serializer value-serializer)]
     (try
