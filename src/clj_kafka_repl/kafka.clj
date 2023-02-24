@@ -467,7 +467,7 @@
 
                                      current-offsets
                                      (->> (into [] by-partition)
-                                          (sort first))
+                                          (sort-by first))
 
                                      latest-offsets
                                      (get-latest-offsets topic-name)]
